@@ -128,7 +128,7 @@ resource "azurerm_virtual_machine_scale_set" "terraformvmss" {
   sku {
     name     = "Standard_F2s"
     tier     = "Standard"
-    capacity = 0
+    capacity = 1
   }
 
   os_profile {
