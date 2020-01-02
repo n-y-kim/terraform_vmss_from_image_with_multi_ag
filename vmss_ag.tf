@@ -44,6 +44,13 @@ resource "azurerm_subnet" "agsubnet" {
   address_prefix       = "10.0.2.0/24"
 }
 
+resource "azurerm_subnet" "agsubnet2" {
+  name                 = "ag-subnet2"
+  virtual_network_name = "${azurerm_virtual_network.terraformvnet.name}"
+  resource_group_name  = "${azurerm_resource_group.terraformrg.name}"
+  address_prefix       = "10.0.3.0/24"
+}
+
 resource "azurerm_public_ip" "PublicLBPIP" {
   name                = "publiclb-pip"
   location            = "${azurerm_resource_group.terraformrg.location}"
@@ -54,6 +61,7 @@ resource "azurerm_public_ip" "PublicLBPIP" {
     environment = "Terraform Deployment"
   }
 }
+
 
 resource "azurerm_public_ip" "agPIP" {
   name                = "ag-pip"
@@ -66,6 +74,16 @@ resource "azurerm_public_ip" "agPIP" {
   }
 }
 
+resource "azurerm_public_ip" "agPIP2" {
+  name                = "ag-pip2"
+  resource_group_name = "${azurerm_resource_group.terraformrg.name}"
+  location            = "${azurerm_resource_group.terraformrg.location}"
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags = {
+    environment = "Terraform Deployment"
+  }
+}
 
 resource "azurerm_lb" "terraformnatlb" {
   name                = "terraform-natlb"
@@ -103,7 +121,7 @@ resource "azurerm_virtual_machine_scale_set" "terraformvmss" {
   name                = "${var.prefix}"
   location            = "${azurerm_resource_group.terraformrg.location}"
   resource_group_name = "${azurerm_resource_group.terraformrg.name}"
-  depends_on = [azurerm_application_gateway.network]
+  depends_on = [azurerm_application_gateway.network, azurerm_application_gateway.network2]
   upgrade_policy_mode = "Manual"
   overprovision = false
   
@@ -136,7 +154,7 @@ resource "azurerm_virtual_machine_scale_set" "terraformvmss" {
       subnet_id = "${azurerm_subnet.terraformsubnet.id}"
       primary   = true
       load_balancer_inbound_nat_rules_ids    = ["${azurerm_lb_nat_pool.lbnatpool.id}"]
-      application_gateway_backend_address_pool_ids = ["${azurerm_application_gateway.network.backend_address_pool[0].id}"]
+      application_gateway_backend_address_pool_ids = ["${azurerm_application_gateway.network.backend_address_pool[0].id}","${azurerm_application_gateway.network2.backend_address_pool[0].id}"]
     }
   }
 
@@ -263,6 +281,93 @@ resource "azurerm_application_gateway" "network" {
 
   probe {
     name                      = "${local.probe_name}"
+    protocol                  = "Http"
+    host                      = "127.0.0.1"
+    path                      = "/health"
+    interval                  = 1
+    timeout                   = 1
+    unhealthy_threshold       = 2
+    pick_host_name_from_backend_http_settings = false
+    minimum_servers           = 0
+    match {
+      body = "Healthy"
+      status_code = ["200-399"]
+    }
+  }
+}
+
+locals {
+  backend_address_pool_name2      = "${var.prefix}-appg-beap2"
+  frontend_port_name2             = "${var.prefix}-appg-feport2"
+  frontend_ip_configuration_name2 = "${var.prefix}-appg-feip2"
+  http_setting_name2              = "${var.prefix}-appg-be-htst2"
+  listener_name2                  = "${var.prefix}-appg-httplstn2"
+  request_routing_rule_name2      = "${var.prefix}-appg-rqrt2"
+  redirect_configuration_name2    = "${var.prefix}-appg-rdrcfg2"
+  probe_name2                     = "${var.prefix}-appg-probe2"
+}
+
+resource "azurerm_application_gateway" "network2" {
+  name                = "vmss-appgateway2"
+  resource_group_name = "${azurerm_resource_group.terraformrg.name}"
+  location            = "${azurerm_resource_group.terraformrg.location}"
+  sku {
+    name     = "Standard_v2"
+    tier     = "Standard_v2"
+    capacity = 2
+  }
+
+  gateway_ip_configuration {
+    name      = "my-gateway-ip-configuration2"
+    subnet_id = "${azurerm_subnet.agsubnet2.id}"
+  }
+
+  frontend_port {
+    name = "${local.frontend_port_name2}"
+    port = 80
+  }
+
+  frontend_ip_configuration {
+    name                 = "${local.frontend_ip_configuration_name2}"
+    public_ip_address_id = "${azurerm_public_ip.agPIP2.id}"
+    private_ip_address_allocation = "Dynamic"
+  }
+
+  backend_address_pool {
+    name = "${local.backend_address_pool_name2}"
+  }
+
+  backend_http_settings {
+    name                  = "${local.http_setting_name2}"
+    cookie_based_affinity = "Disabled"
+    path                  = "/"
+    port                  = 9000
+    protocol              = "Http"
+    request_timeout       = 1
+    connection_draining {
+      enabled             = true
+      drain_timeout_sec   = 10 
+    }
+    probe_name            = "${local.probe_name2}"
+  }
+
+  http_listener {
+    name                           = "${local.listener_name2}"
+    frontend_ip_configuration_name = "${local.frontend_ip_configuration_name2}"
+    frontend_port_name             = "${local.frontend_port_name2}"
+    protocol                       = "Http"
+  }
+
+  request_routing_rule {
+    name                       = "${local.request_routing_rule_name2}"
+    rule_type                  = "Basic"
+    http_listener_name         = "${local.listener_name2}"
+    backend_address_pool_name  = "${local.backend_address_pool_name2}"
+    backend_http_settings_name = "${local.http_setting_name2}"
+  }
+
+  probe {
+    name                      = "${local.probe_name2}"
     protocol                  = "Http"
     host                      = "127.0.0.1"
     path                      = "/health"
