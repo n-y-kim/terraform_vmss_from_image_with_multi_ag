@@ -15,7 +15,7 @@ pip3 install --upgrade pip
 pip3 install psutil bottle configparser Flask flask-api msrestazure azure-mgmt-resource azure-mgmt-compute azure-mgmt-network
 
 #checkout code
-git clone https://github.com/n-y-kim/terraform_vmss_from_image_with_ag.git
+git clone https://github.com/bedro96/terraform_vmss_from_image_with_ag.git
 
 #Start health probe job
 cd terraform_vmss_from_image_with_ag
