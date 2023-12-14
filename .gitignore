@@ -211,7 +211,7 @@ terraform.rc
 
 # End of https://www.toptal.com/developers/gitignore/api/python,terraform
 
-*.hcl
+ubuntu.pkr.hcl
 
 terraform.tfstate
 terraform.tfstate.backup
